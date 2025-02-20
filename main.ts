@@ -7,73 +7,64 @@ let currentMode: Mode = Mode.LineFollow
 let avoidanceTimer = 0
 
 basic.forever(function () {
-    // Continuously check the line sensors
+    // Read sensors
     let leftSensor = maqueen.readPatrol(maqueen.Patrol.PatrolLeft)
     let rightSensor = maqueen.readPatrol(maqueen.Patrol.PatrolRight)
-
-    // Always check for obstacles even during line following
     let distance = maqueen.Ultrasonic()
 
-    // If an obstacle is detected and we're not already avoiding it, switch modes.
+    // Always check for obstacles (if not already avoiding)
     if (distance < 10 && distance > 0 && currentMode == Mode.LineFollow) {
         currentMode = Mode.ObstacleAvoidance
-        avoidanceTimer = 0  // reset a timer for avoidance steps
+        avoidanceTimer = 0  // reset the avoidance timer
     }
 
     if (currentMode == Mode.ObstacleAvoidance) {
-        // Instead of long blocking pauses, use a timer to perform steps in small intervals.
+        // Increment timer so we can perform non-blocking avoidance steps.
         avoidanceTimer += 1
 
-        // Example steps: for the first few cycles, back up; then check sides; then turn.
         if (avoidanceTimer < 5) {
             // Back up slowly
             maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CCW, 25)
         } else if (avoidanceTimer < 8) {
-            // Briefly stop
+            // Brief stop
             maqueen.motorStop(maqueen.Motors.All)
         } else if (avoidanceTimer < 12) {
-            // Check left side
+            // Check left side (rotate left motor)
             maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 40)
-            // You could read sensor here if needed
         } else if (avoidanceTimer < 16) {
-            // Check right side (or perform turning based on previous check)
+            // Check right side (rotate right motor)
             maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 40)
         } else if (avoidanceTimer < 22) {
-            // Example: perform a turning maneuver.
-            // (In a more advanced version, store left/right checks and decide based on them.)
+            // Execute a turning maneuver
             maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CCW, 40)
             maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 40)
         } else {
-            // After a full cycle of avoidance, return to line following mode.
+            // After the avoidance cycle, return to line following mode.
             currentMode = Mode.LineFollow
         }
     } else {
-        // Line following mode (slow speed for better responsiveness)
-        if (leftSensor == 0 && rightSensor == 0) {
-            maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, 50)
-        } else {
-            if (leftSensor == 0 && rightSensor == 1) {
-                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-                maqueen.motorStop(maqueen.Motors.M1)
-                if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) == 1 && maqueen.readPatrol(maqueen.Patrol.PatrolRight) == 1) {
-                    maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-                    maqueen.motorStop(maqueen.Motors.M1)
-                }
-            } else {
-                if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) == 1 && maqueen.readPatrol(maqueen.Patrol.PatrolRight) == 0) {
-                    maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                    maqueen.motorStop(maqueen.Motors.M2)
-                    if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) == 1 && maqueen.readPatrol(maqueen.Patrol.PatrolRight) == 1) {
-                        maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                        maqueen.motorStop(maqueen.Motors.M2)
-                    }
-                    if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) == 0 && maqueen.readPatrol(maqueen.Patrol.PatrolRight) == 0) {
-                        maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                    } else {
-                        maqueen.motorStop(maqueen.Motors.M2)
-                    }
-                }
-            }
-        }
+        // In LineFollow mode, use proportional control for smoother corrections.
+        // Here, we assume:
+        //   - Sensor value 0: line detected (black)
+        //   - Sensor value 1: line lost (white)
+        // Compute error as (rightSensor - leftSensor). For example:
+        //   - If left=0 and right=1, error = 1, meaning the line is under the left sensor.
+        //     Correction: slow the left motor, speed up the right motor to turn left.
+        let baseSpeed = 50
+        let Kp = 10  // Proportional constant; adjust this to tune responsiveness.
+        let error = rightSensor - leftSensor
+        let correction = error * Kp
+        let leftSpeed = baseSpeed - correction
+        let rightSpeed = baseSpeed + correction
+
+        // Optionally clamp speeds to allowed limits.
+        if (leftSpeed < 0) leftSpeed = 0
+        if (rightSpeed < 0) rightSpeed = 0
+        if (leftSpeed > 100) leftSpeed = 100
+        if (rightSpeed > 100) rightSpeed = 100
+
+        // Run the motors with corrected speeds.
+        maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, leftSpeed)
+        maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, rightSpeed)
     }
 })
