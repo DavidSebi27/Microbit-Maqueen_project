@@ -7,19 +7,15 @@ let currentMode: Mode = Mode.LineFollow
 let avoidanceTimer = 0
 
 basic.forever(function () {
-    // Read sensor values once per loop iteration
-    let leftSensor = maqueen.readPatrol(maqueen.Patrol.PatrolLeft)
-    let rightSensor = maqueen.readPatrol(maqueen.Patrol.PatrolRight)
     let distance = maqueen.Ultrasonic()
 
-    // Always check for obstacles if we're in line-follow mode.
-    if (distance < 10 && distance > 0 && currentMode == Mode.LineFollow) {
+    // Check for obstacles while in line-follow mode.
+    if (distance < 10 && distance > 0 && currentMode === Mode.LineFollow) {
         currentMode = Mode.ObstacleAvoidance
-        avoidanceTimer = 0  // Reset the avoidance timer.
+        avoidanceTimer = 0
     }
 
-    if (currentMode == Mode.ObstacleAvoidance) {
-        // Increment the timer for non-blocking avoidance maneuvers.
+    if (currentMode === Mode.ObstacleAvoidance) {
         avoidanceTimer += 1
 
         if (avoidanceTimer < 5) {
@@ -43,34 +39,33 @@ basic.forever(function () {
             currentMode = Mode.LineFollow
         }
     } else {
-        // Line following mode: use your if/else–based logic.
-        if (leftSensor == 0 && rightSensor == 0) {
+        // Line following mode using inline sensor readings.
+        if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
+            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
             maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, 50)
-        } else {
-            if (leftSensor == 0 && rightSensor == 1) {
+        } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
+            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
+            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
+            maqueen.motorStop(maqueen.Motors.M1)
+            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
+                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
                 maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
                 maqueen.motorStop(maqueen.Motors.M1)
-                // If both sensors lose the line after turning...
-                if (leftSensor == 1 && rightSensor == 1) {
-                    maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-                    maqueen.motorStop(maqueen.Motors.M1)
-                }
+            }
+        } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
+            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
+            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
+            maqueen.motorStop(maqueen.Motors.M2)
+            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
+                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
+                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
+                maqueen.motorStop(maqueen.Motors.M2)
+            }
+            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
+                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
+                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
             } else {
-                if (leftSensor == 1 && rightSensor == 0) {
-                    maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                    maqueen.motorStop(maqueen.Motors.M2)
-                    // If both sensors lose the line after turning...
-                    if (leftSensor == 1 && rightSensor == 1) {
-                        maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                        maqueen.motorStop(maqueen.Motors.M2)
-                    }
-                    // If both sensors see the line again, ensure left motor runs.
-                    if (leftSensor == 0 && rightSensor == 0) {
-                        maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                    } else {
-                        maqueen.motorStop(maqueen.Motors.M2)
-                    }
-                }
+                maqueen.motorStop(maqueen.Motors.M2)
             }
         }
     }
