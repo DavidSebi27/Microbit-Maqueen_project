@@ -9,7 +9,7 @@ let avoidanceTimer = 0
 basic.forever(function () {
     let distance = maqueen.Ultrasonic()
 
-    // Check for obstacles while in line-follow mode.
+    // Check for obstacles when in line-follow mode.
     if (distance < 10 && distance > 0 && currentMode === Mode.LineFollow) {
         currentMode = Mode.ObstacleAvoidance
         avoidanceTimer = 0
@@ -42,30 +42,34 @@ basic.forever(function () {
         // Line following mode using inline sensor readings.
         if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
             maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
+            // Both sensors on line: drive forward.
             maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, 50)
         } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
             maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
+            // Left sensor on line, right sensor off line: slow left wheel.
             maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-            maqueen.motorStop(maqueen.Motors.M1)
+            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 15)
+            // If both sensors lose the line, repeat turning command.
             if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
                 maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
                 maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-                maqueen.motorStop(maqueen.Motors.M1)
+                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 15)
             }
         } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
             maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
+            // Right sensor on line, left sensor off line: slow right wheel.
             maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-            maqueen.motorStop(maqueen.Motors.M2)
+            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
             if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
                 maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
                 maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                maqueen.motorStop(maqueen.Motors.M2)
+                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
             }
             if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
                 maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
                 maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
             } else {
-                maqueen.motorStop(maqueen.Motors.M2)
+                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
             }
         }
     }
