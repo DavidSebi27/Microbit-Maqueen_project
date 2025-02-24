@@ -3,74 +3,83 @@ enum Mode {
     ObstacleAvoidance
 }
 
-let currentMode: Mode = Mode.LineFollow
-let avoidanceTimer = 0
+let currentMode: Mode = Mode.LineFollow;
+
+// Motor Speed Settings
+let baseSpeed = 25;  // Base speed for straight sections
+let outerWheelSpeed = 25;  // Outer wheel speed during turns
+let innerWheelSpeed = 10;  // Inner wheel speed during turns (backward)
+
+// Ultrasonic Sensor Thresholds
+let obstacleThreshold = 10;  // Distance (in cm) to detect an obstacle
+let safeDistance = 15;       // Distance (in cm) to consider the obstacle cleared
+
+// Last Turn Direction
+let lastTurn = "none";
 
 basic.forever(function () {
-    let distance = maqueen.Ultrasonic()
+    let distance = maqueen.Ultrasonic();
 
-    // Check for obstacles when in line-follow mode.
-    if (distance < 10 && distance > 0 && currentMode === Mode.LineFollow) {
-        currentMode = Mode.ObstacleAvoidance
-        avoidanceTimer = 0
+    // Check for obstacles while in line-follow mode.
+    if (distance < obstacleThreshold && distance > 0 && currentMode === Mode.LineFollow) {
+        currentMode = Mode.ObstacleAvoidance;
     }
 
     if (currentMode === Mode.ObstacleAvoidance) {
-        avoidanceTimer += 1
-
-        if (avoidanceTimer < 5) {
-            // Back up slowly.
-            maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CCW, 25)
-        } else if (avoidanceTimer < 8) {
-            // Brief stop.
-            maqueen.motorStop(maqueen.Motors.All)
-        } else if (avoidanceTimer < 12) {
-            // Check left side: rotate left motor.
-            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 40)
-        } else if (avoidanceTimer < 16) {
-            // Check right side: rotate right motor.
-            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 40)
-        } else if (avoidanceTimer < 22) {
-            // Execute a turning maneuver.
-            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CCW, 40)
-            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 40)
+        // Obstacle avoidance logic
+        if (distance < obstacleThreshold && distance > 0) {
+            // Obstacle detected: turn left to go around it.
+            // Outer wheel (M2) forward at 25, inner wheel (M1) backward at 10.
+            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, outerWheelSpeed);
+            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CCW, innerWheelSpeed);
         } else {
-            // End of avoidance cycle; return to line-follow mode.
-            currentMode = Mode.LineFollow
+            // No obstacle detected: move forward to clear the obstacle.
+            maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, baseSpeed);
+
+            // Check if the obstacle is fully cleared.
+            if (distance >= safeDistance) {
+                // Resume line-following mode.
+                currentMode = Mode.LineFollow;
+            }
         }
     } else {
-        // Line following mode using inline sensor readings.
-        if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
-            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
-            // Both sensors on line: drive forward.
-            maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, 50)
-        } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
-            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
-            // Left sensor on line, right sensor off line: slow left wheel.
-            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 15)
-            // If both sensors lose the line, repeat turning command.
-            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
-                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
-                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 50)
-                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 15)
-            }
-        } else if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
-            maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
-            // Right sensor on line, left sensor off line: slow right wheel.
-            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
-            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 1 &&
-                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 1) {
-                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
-                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
-            }
-            if (maqueen.readPatrol(maqueen.Patrol.PatrolLeft) === 0 &&
-                maqueen.readPatrol(maqueen.Patrol.PatrolRight) === 0) {
-                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, 50)
+        // Line-following mode using inline sensor readings.
+        let leftSensor = maqueen.readPatrol(maqueen.Patrol.PatrolLeft);
+        let rightSensor = maqueen.readPatrol(maqueen.Patrol.PatrolRight);
+
+        // Line-following logic
+        if (leftSensor === 0 && rightSensor === 0) {
+            // Both sensors on the line: drive straight.
+            maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, baseSpeed);
+        } else if (leftSensor === 0 && rightSensor === 1) {
+            // Left sensor on line, right sensor off: turn left.
+            // Outer wheel (M2) forward at 25, inner wheel (M1) backward at 10.
+            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, outerWheelSpeed);
+            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CCW, innerWheelSpeed);
+            lastTurn = "left";  // Update last turn direction
+        } else if (leftSensor === 1 && rightSensor === 0) {
+            // Right sensor on line, left sensor off: turn right.
+            // Outer wheel (M1) forward at 25, inner wheel (M2) backward at 10.
+            maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, outerWheelSpeed);
+            maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CCW, innerWheelSpeed);
+            lastTurn = "right";  // Update last turn direction
+        } else {
+            // Both sensors on the surface (white) - recover based on last turn.
+            if (lastTurn === "left") {
+                // Recover left: turn left.
+                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, outerWheelSpeed);
+                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CCW, innerWheelSpeed);
+            } else if (lastTurn === "right") {
+                // Recover right: turn right.
+                maqueen.motorRun(maqueen.Motors.M1, maqueen.Dir.CW, outerWheelSpeed);
+                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CCW, innerWheelSpeed);
             } else {
-                maqueen.motorRun(maqueen.Motors.M2, maqueen.Dir.CW, 15)
+                // If no last turn, move forward slowly.
+                maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, baseSpeed);
             }
         }
     }
-})
+
+    // Small Delay for Stability
+    basic.pause(10);
+});
